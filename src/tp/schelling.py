@@ -6,50 +6,6 @@ from .util.interfaces import mercado_inmobiliario_interface
 from typing import Optional
 from numpy.random import Generator as RandomNumberGenerator
 
-def smoothstep_generator(p: float, s: float):
-    """
-    Familia de funciones de interpolación suave.
-    Devuelve una función de interpolación entre 0 y 1.
-
-    Casos especiales:
-    - s = 0: función lineal
-    - s = 1: función step centrada en p
-    - s = 1, p = 0: constante 1
-    - s = 1, p = 1: constante 0
-
-    Parámetros:
-    p: Punto de inflexion
-    s: Steepness
-    """
-    if not (0 <= p <= 1) or not (0 <= s <= 1):
-        raise ValueError("p and s must be in the range [0,1]")
-
-    if s == 0: # id
-        return lambda x: x, lambda x: x
-
-    if s == 1: # step
-        slope = lambda x: float('inf')
-        match p:
-            case 1: return slope, lambda x: 0
-            case 0: return slope, lambda x: 1
-            case _: return slope, lambda x: 1 if x > p else 0
-
-    c = (2 / (1-s)) - 1
-
-    f = lambda x,n: (x**c) / (n**(c-1))
-    g = lambda x,n: (c*x**(c-1)) / (n**(c-1))
-
-    f1 = lambda x: f(x, p)
-    f2 = lambda x: 1 - f(1-x, 1-p)
-    slope = lambda x: (g(p,p) * (x-p)) + p
-
-    match p:
-        case 0: return slope, f1
-        case 1: return slope, f2
-        case _: return slope, lambda x: (f1 if x <= p else f2)(x)
-        
-_, costo_proporcional = smoothstep_generator(.2, .5)
-
 def precio_propiedad(C_propio: float, C_distinto: float) -> float:
     A = 1/16
     B = 0.5
@@ -60,12 +16,7 @@ def utilidad(K: float, precio: float, alpha: float=0.5) -> float:
     return (K**(alpha)) * precio**(1-alpha) # Ecuación 2.5 -  p.85
 
 def distance(i1, j1, i2, j2):
-    return np.linalg.norm(np.array([i1, j1])-np.array([i2,j2]))
-
-def costo_segun_distancia(f1: int, c1: int, f2: int, c2: int, N:int) -> float:
-    distancia = distance(f1, c1, f2, c2)/(np.sqrt(2)*N)
-    return costo_proporcional(distancia)
-    
+    return np.linalg.norm(np.array([i1, j1])-np.array([i2,j2]))    
 
 class mercado_inmobiliario(mercado_inmobiliario_interface):
     rng: RandomNumberGenerator # generador de numeros aleatorios
@@ -77,15 +28,28 @@ class mercado_inmobiliario(mercado_inmobiliario_interface):
     K: Lattice[float] # capital de cada individuo
     U: Lattice[float] # utilidad de cada individuo
 
+    precios_barrios: list[float]
+    mapa_barrios: Lattice[int]
+
 
     def __init__(self, 
-                 L: int, 
+                 L: int,
+                 precios_barrios: list[float], #precios de mudarse a ese barrio
+                 # precios_prop_barrios: list[float],
+                 configuracion_barrios: Lattice[int], # los valores están entre 0 y len(barrios)
                  configuracion: Optional[Lattice[int]] = None,
                  alpha: float = 0.5,
+                 rango_de_vision: float = 1,
                  rng: Optional[RandomNumberGenerator] = None):
         
         self.L = L
         self.alpha = alpha
+
+        self.rango_de_vision = rango_de_vision
+
+        self.precios_barrios = precios_barrios
+        self.mapa_barrios = configuracion_barrios
+        # self.precios_prop_barrios = precios_prop_barrios
 
         if not rng:
             rng = np.random.default_rng()
@@ -157,27 +121,47 @@ class mercado_inmobiliario(mercado_inmobiliario_interface):
         # Seleccionar dos posiciones aleatorias en la cuadrícula
         i1, j1, i2, j2 = self.rng.integers(0, self.L, size=4)
 
+        dist = distance(i1,j1, i2,j2) / (self.L * np.sqrt(2))
+
+        # print(dist)
+
+        if dist >= self.rango_de_vision:
+            return
+
         agente_1, agente_2 = self.configuracion[i1, j1], self.configuracion[i2, j2]
+        barrio_1, barrio_2 = self.mapa_barrios[i1, j1], self.mapa_barrios[i2, j2]
+
+        if barrio_1 == barrio_2:
+            costo_mudanza_a_1 = 0
+            costo_mudanza_a_2 = 0
+        else:
+            costo_mudanza_a_1 = self.precios_barrios[barrio_1]
+            costo_mudanza_a_2 = self.precios_barrios[barrio_2]
+
         K_1, K_2 = self.K[i1, j1], self.K[i2, j2]
 
         C_p_1_nuevo, C_dist_1_nuevo = self._num_vecinos(i1, j1, i2, j2)
         C_p_2_nuevo, C_dist_2_nuevo = self._num_vecinos(i2, j2, i1, j1)
 
         precio_1_nuevo, precio_2_nuevo = precio_propiedad(C_p_1_nuevo, C_dist_1_nuevo), precio_propiedad(C_p_2_nuevo, C_dist_2_nuevo)
+        # precio_1_nuevo *= self.precios_prop_barrios[barrio_2]
+        # precio_2_nuevo *= self.precios_prop_barrios[barrio_1]
+
         # delta_p = precio_2_nuevo - precio_1_nuevo
         p_promedio = (precio_2_nuevo + precio_1_nuevo) / 2
-        
-        costo_mudanza = costo_segun_distancia(i1, j1, i2, j2, self.L)
+
+        precio_mudarse_a_1 = costo_mudanza_a_1 + precio_2_nuevo
+        precio_mudarse_a_2 = costo_mudanza_a_2 + precio_1_nuevo
 
         # Verificar si ambos agentes tienen suficiente riqueza para la transacción
         #if np.min([K_1, K_2]) > np.abs(delta_p):
-        if (precio_1_nuevo - precio_1_nuevo*costo_mudanza - p_promedio - K_1 < 0) and (precio_2_nuevo - precio_2_nuevo * costo_mudanza - p_promedio - K_2 < 0):
+        if (precio_mudarse_a_2 - p_promedio - K_1 < 0) and (precio_mudarse_a_1 - p_promedio - K_2 < 0):
 
             # K_2_nuevo = K_2 - delta_p
             # K_1_nuevo = K_1 + delta_p
 
-            K_1_nuevo = K_1 + precio_2_nuevo - p_promedio  # Cálculo del capital potencial del agente 1
-            K_2_nuevo = K_2 + precio_1_nuevo - p_promedio  # Cálculo del capital potencial del agente 2
+            K_1_nuevo = K_1 + precio_mudarse_a_2 - p_promedio  # Cálculo del capital potencial del agente 1
+            K_2_nuevo = K_2 + precio_mudarse_a_1 - p_promedio  # Cálculo del capital potencial del agente 2
 
             
             utilidad_1_nueva = utilidad(K_1_nuevo, precio_1_nuevo, self.alpha)
