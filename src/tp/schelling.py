@@ -35,7 +35,7 @@ class mercado_inmobiliario(mercado_inmobiliario_interface):
     def __init__(self, 
                  L: int,
                  precios_barrios: list[float], #precios de mudarse a ese barrio
-                 # precios_prop_barrios: list[float],
+                 precios_prop_barrios: list[float],
                  configuracion_barrios: Lattice[int], # los valores están entre 0 y len(barrios)
                  configuracion: Optional[Lattice[int]] = None,
                  alpha: float = 0.5,
@@ -49,7 +49,7 @@ class mercado_inmobiliario(mercado_inmobiliario_interface):
 
         self.precios_barrios = precios_barrios
         self.mapa_barrios = configuracion_barrios
-        # self.precios_prop_barrios = precios_prop_barrios
+        self.precios_prop_barrios = precios_prop_barrios
 
         if not rng:
             rng = np.random.default_rng()
@@ -144,8 +144,8 @@ class mercado_inmobiliario(mercado_inmobiliario_interface):
         C_p_2_nuevo, C_dist_2_nuevo = self._num_vecinos(i2, j2, i1, j1)
 
         precio_1_nuevo, precio_2_nuevo = precio_propiedad(C_p_1_nuevo, C_dist_1_nuevo), precio_propiedad(C_p_2_nuevo, C_dist_2_nuevo)
-        # precio_1_nuevo *= self.precios_prop_barrios[barrio_2]
-        # precio_2_nuevo *= self.precios_prop_barrios[barrio_1]
+        precio_1_nuevo *= self.precios_prop_barrios[barrio_2]
+        precio_2_nuevo *= self.precios_prop_barrios[barrio_1]
 
         # delta_p = precio_2_nuevo - precio_1_nuevo
         p_promedio = (precio_2_nuevo + precio_1_nuevo) / 2
