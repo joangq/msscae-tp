@@ -1,3 +1,5 @@
+from typing import Iterable
+from matplotlib import pyplot as plt
 import numpy as np
 
 def criterio_equilibrio(serie: np.ndarray[float], lag: int, tol: float) -> bool:
@@ -40,6 +42,51 @@ def gini(_ys: np.ndarray[float]) -> float:
     total = sumas_parciales[-1]
 
     return (2*sumas_indexadas / (n * total)) - ((n+1)/n)
+
+
+def graficar_gini(data: Iterable[float], coef: float):
+    plt.style.use('ggplot')
+    sorted_data = np.sort(data)
+    
+    n = len(sorted_data)
+    lorenz_curve = np.cumsum(sorted_data) / np.sum(sorted_data)
+    lorenz_curve = np.insert(lorenz_curve, 0, 0) # Agrego el (0,0)
+    
+    # Línea de Igualdad
+    equality_line = np.linspace(0, 1, len(lorenz_curve))
+    
+    # Curva de Lorenz
+    plt.figure(figsize=(8, 8))
+    plt.plot(equality_line, lorenz_curve, label='Curva de Lorenz', color='red')
+    plt.plot(equality_line, equality_line, label='Línea de Igualdad', linestyle='--', color='blue')
+
+    # Relleno entre la línea de igualdad y la curva de Lorenz
+    plt.fill_between(equality_line, equality_line, lorenz_curve, color='blue', alpha=0.1)
+
+    # Relleno abajo de la curva de Lorenz
+    plt.fill_between(equality_line, 0, lorenz_curve, color='red', alpha=0.2)
+    
+    # Muestro el índice
+    plt.text(0.6, 0.2, f'Gini Index = {coef:.2f}', fontsize=12, bbox=dict(facecolor='white', alpha=0.5), color='black')
+    plt.title('Lorenz Curve and Gini Index', fontsize=16)
+    plt.xlabel('Proporción acumulada de la población de menor a mayor ingreso', fontsize=14)
+    plt.ylabel('Proporción acumulada de riqueza', fontsize=14)
+    legend = plt.legend(loc='best')
+    for t in legend.get_texts():
+        t.set_color('black')
+    
+    plt.grid(True)
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
+    
+    # Numeros como porcentajes
+    plt.gca().xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{int(x * 100)}%'))
+    plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda y, _: f'{int(y * 100)}%'))
+
+    plt.tight_layout()
+    
+    return plt
 
 # Funciones de observacion del modelo ==================================================================================================
 

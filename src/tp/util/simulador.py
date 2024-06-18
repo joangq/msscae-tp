@@ -43,7 +43,7 @@ class simulador(simulador_abstracto):
             self.cache_actions = (mercado_inmobiliario_interface.utilidad_media, )
 
         self._cache = {k.__name__: np.full(self.max_steps, -1.0, dtype=float) for k in self.cache_actions}
-        self._cache['utilidad'] = self._cache['utilidad_media'][0:self.paso_actual+1]
+        self._cache['utilidad'] = self._cache['utilidad_media'][0:self.paso_actual+1] # actualizo ref
 
 
     def cache(self):
@@ -51,7 +51,7 @@ class simulador(simulador_abstracto):
             name = action.__name__
             self._cache[name][self.paso_actual] = action(self.modelo)
         
-        self._cache['utilidad'] = self._cache['utilidad_media'][0:self.paso_actual+1]
+        self._cache['utilidad'] = self._cache['utilidad_media'][0:self.paso_actual+1] # actualizo ref
         self.paso_actual += 1
 
     def on_finish(self, alcanzo_equilibrio: bool, pasos: int) -> None:
