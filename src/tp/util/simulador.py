@@ -1,48 +1,63 @@
 from .interfaces import simulador_abstracto, mercado_inmobiliario_interface
 from typing import Callable, Any, Iterable
-from numpy import ndarray as numpy_array
+from dataclasses import dataclass
+import numpy as np
 
+@dataclass
 class simulador(simulador_abstracto):
     """
     Simulador concreto para el modelo de mercado inmobiliario de Schelling.
     
     Encapsula al código que toma el modelo y lo simula.
     """
-    def __init__(self, 
-                 modelo: mercado_inmobiliario_interface, 
-                 criterio_equilibrio: Callable[[numpy_array[float], Any], bool],
-                 max_steps: int, 
-                 lag: int, 
-                 tol: float):
-        self.modelo = modelo
-        self.max_steps = max_steps
-        self.lag = lag
-        self.tol = tol
-        self.criterio_equilibrio = criterio_equilibrio
-        self._utilidad = []
-        self._capital = []
+    modelo: mercado_inmobiliario_interface
 
-    @property
-    def utilidad(self) -> Iterable[float]:
-        return self._utilidad
-    
-    @property
-    def capital(self) -> Iterable[float]:
-        return self._capital
+    # TODO: Otra forma de hacer esto es pasar directamente una funcion    
+    # que tenga los parametros que necesita parcialmente aplicados,
+    # y que sólo tome la lista de la utilidad promedio como parámetro
+    # (y luego devuelva el booleano).
+    criterio_equilibrio: Callable[[np.ndarray[float], Any], bool]
+    max_steps: int
+    lag: int
+    tol: float
 
-    def step(self) -> None:
-        """
-        Ejecuta un paso del modelo, indistintamente de si se cumple el criterio de equilibrio.
-        """
-        self.modelo.ronda_intercambio()
-        self.utilidad.append(self.modelo.utilidad_media())
-        self.capital.append(self.modelo.capital_medio())
-    
-    def run(self) -> None:
-        """
-        Ejecuta todos los pasos hasta que se cumpla el criterio de equilibrio o se alcance el máximo de pasos.
-        """
-        for step in range(self.max_steps):
-            self.step()
-            if self.criterio_equilibrio(self.utilidad, self.lag, self.tol):
-                break
+    cache_actions: None | Iterable[Callable[[mercado_inmobiliario_interface], Any]] = None
+    """
+    En cada paso, cada funcion de 'cache_actions' se ejecuta, y su resultado se guarda en el cache.
+    (ver 'cache')
+    """
+
+
+    _cache: dict = None
+    """
+    El cache guarda en 'utilidad' una slice de 'utilidad_media' que va creciendo a medida que se ejecutan los pasos.
+    Mientras tanto, 'utilidad_media' se pre-genera con el largo máximo de pasos.
+
+    IMPORTANTE: Las claves del diccionario son los nombres de las funciones (no los qualnames), por ende dos funciones
+    con **exactamente** el mismo nombre van a colisionar.
+    """
+
+    def __post_init__(self):
+        self.paso_actual = 0
+        if self.cache_actions is None:
+            self.cache_actions = (mercado_inmobiliario_interface.utilidad_media, )
+
+        self._cache = {k.__name__: np.full(self.max_steps, -1.0, dtype=float) for k in self.cache_actions}
+        self._cache['utilidad'] = self._cache['utilidad_media'][0:self.paso_actual+1]
+
+
+    def cache(self):
+        for action in self.cache_actions:
+            name = action.__name__
+            self._cache[name][self.paso_actual] = action(self.modelo)
+        
+        self._cache['utilidad'] = self._cache['utilidad_media'][0:self.paso_actual+1]
+        self.paso_actual += 1
+
+    def on_finish(self, alcanzo_equilibrio: bool, pasos: int) -> None:
+        print(f"La simulación {'alcanzó' if alcanzo_equilibrio else 'no alcanzó'} el equilibrio en {pasos} pasos.")
+
+        del self._cache['utilidad'] # borro la ref a utilidad_media
+
+        for k in self._cache.keys():
+            self._cache[k].resize(pasos) # refcheck=false si quedan referencias

@@ -5,6 +5,7 @@ from .util.types import Lattice
 from .util.interfaces import mercado_inmobiliario_interface
 from typing import Optional
 from numpy.random import Generator as RandomNumberGenerator
+from .util.barrios import Barrio, Mapa
 
 def precio_propiedad(C_propio: float, C_distinto: float) -> float:
     A = 1/16
@@ -13,7 +14,8 @@ def precio_propiedad(C_propio: float, C_distinto: float) -> float:
     return A*(C_propio - C_distinto) + B  # Ecuación 2.6 -  p.86
 
 def utilidad(K: float, precio: float, alpha: float=0.5) -> float:
-    return (K**(alpha)) * precio**(1-alpha) # Ecuación 2.5 -  p.85
+    with np.errstate(all='ignore'):
+        return (K**(alpha)) * precio**(1-alpha) # Ecuación 2.5 -  p.85
 
 def distance(i1, j1, i2, j2):
     return np.linalg.norm(np.array([i1, j1])-np.array([i2,j2]))    
@@ -31,25 +33,34 @@ class mercado_inmobiliario(mercado_inmobiliario_interface):
     precios_barrios: list[float]
     mapa_barrios: Lattice[int]
 
-
     def __init__(self, 
                  L: int,
-                 precios_barrios: list[float], #precios de mudarse a ese barrio
-                 precios_prop_barrios: list[float],
-                 configuracion_barrios: Lattice[int], # los valores están entre 0 y len(barrios)
+                 # precios_barrios: list[float], #precios de mudarse a ese barrio
+                 # precios_prop_barrios: list[float],
+                 # configuracion_barrios: Lattice[int], # los valores están entre 0 y len(barrios)
+                 mapa: Mapa,
                  configuracion: Optional[Lattice[int]] = None,
                  alpha: float = 0.5,
                  rango_de_vision: float = 1,
-                 rng: Optional[RandomNumberGenerator] = None):
+                 rng: Optional[RandomNumberGenerator] = None,
+                 capital_inicial = None
+                 ):
         
         self.L = L
         self.alpha = alpha
 
         self.rango_de_vision = rango_de_vision
 
-        self.precios_barrios = precios_barrios
-        self.mapa_barrios = configuracion_barrios
-        self.precios_prop_barrios = precios_prop_barrios
+        self.mapa = mapa
+
+        #self.precios_barrios = precios_barrios
+        self.precios_barrios = [barrio.precio_mudanza for barrio in mapa.barrios]
+
+        #self.mapa_barrios = configuracion_barrios
+        self.mapa_barrios = mapa.mapa
+
+        #self.precios_prop_barrios = precios_prop_barrios
+        self.precios_prop_barrios = [barrio.precio_propiedades for barrio in mapa.barrios]
 
         if not rng:
             rng = np.random.default_rng()
@@ -62,7 +73,11 @@ class mercado_inmobiliario(mercado_inmobiliario_interface):
         
         self.configuracion = configuracion
 
-        self.K = np.ones((self.L, self.L)) # Capital inicial de cada individuo, K=1
+
+        if capital_inicial is None:
+            self.K = np.ones((self.L, self.L)) # Capital inicial de cada individuo, K=1
+        else:
+            self.K = capital_inicial.copy()
 
         self.U = np.zeros((self.L, self.L)) # Utilidad de cada individuo
         for i in range(self.L):
@@ -70,45 +85,6 @@ class mercado_inmobiliario(mercado_inmobiliario_interface):
                 C_p, C_dist = self._num_vecinos(i, j, i, j)
                 precio = precio_propiedad(C_p, C_dist)
                 self.U[i, j] = utilidad(self.K[i, j], precio, self.alpha) # Utilidad inicial
-        
-    def utilidad_media(self) -> float:
-        return np.mean(self.U.flatten())
-
-    def capital_medio(self) -> float:
-        return np.mean(self.K.flatten())
-
-    def _num_vecinos(self, i_a, j_a, i, j) -> tuple[int, int]:
-        """
-        Calcula el número de vecinos del mismo tipo (C_p) y del tipo opuesto (C_dist) de un agente en una posición dada.
-
-        Parámetros:
-            i_a, j_a (int): Coordenadas del agente.
-            i, j (int): Coordenadas de la posición de interés.
-
-        Returns:
-            tuple: Número de vecinos del mismo tipo (C_p) y del tipo opuesto (C_dist).
-        """
-        agente = self.configuracion[i_a, j_a]
-
-        C_propio = 1  # Cuenta a sí mismo como un vecino - p. 86
-        C_distinto = 0
-
-        indices_vecinos = [(i    , j - 1), (i    , j + 1), 
-                           (i - 1, j    ), (i + 1, j    ),
-                           (i + 1, j - 1), (i + 1, j + 1), 
-                           (i - 1, j - 1), (i - 1, j + 1)]
-
-        for m, n in indices_vecinos:
-            i_vecino = m % self.L
-            j_vecino = n % self.L
-            vecino_mn = self.configuracion[i_vecino, j_vecino]
-
-            if agente == vecino_mn:
-                C_propio += 1
-            else:
-                C_distinto += 1
-
-        return C_propio, C_distinto
 
     def proponer_intercambio(self) -> None:
         """
@@ -184,49 +160,3 @@ class mercado_inmobiliario(mercado_inmobiliario_interface):
                 
                 self.U[i1, j1] = utilidad_2_nueva
                 self.U[i2, j2] = utilidad_1_nueva
-    
-    def ronda_intercambio(self) -> None:
-        N_intercambios = self.L**2
-        for _ in range(N_intercambios):
-            self.proponer_intercambio()
-
-    def lattice(self) -> Lattice[float]:
-        lattice = np.copy(self.configuracion)
-
-        for i in range(self.L):
-            for j in range(self.L):
-                U_ij = self.U[i, j]
-
-                # Marcar agentes insatisfechos dependiendo del tipo de agente
-                if U_ij < 0.85:
-                    lattice[i, j] = 4 if self.configuracion[i, j] == 1 else 5
-        
-        return lattice
-
-    def lattice_plot(self):
-        """
-        Crea un gráfico de malla basado en los niveles de satisfacción de los agentes.
-
-        """
-        lattice = self.lattice()
-
-        fig = plt.figure(figsize=(6,4))
-        plt.imshow(lattice, cmap = 'inferno')
-        plt.colorbar()
-        plt.title("Sistema L = {} y alpha = {} \n (sitios naranjas y amarillos corresponden a agentes insatisfechos)".format(self.L, self.alpha))
-        plt.show()
-
-    def generar_animacion(self, frames) -> FuncAnimation:
-        fig, ax = plt.subplots()
-        img = ax.imshow(self.lattice(), cmap='inferno', interpolation='nearest')
-
-        def actualizar(i):
-            self.ronda_intercambio()
-            img.set_array(self.lattice())
-            return img,
-
-        animacion = FuncAnimation(fig, actualizar, frames=frames, interval=200, blit=True)
-        plt.title("Evolución del sistema L = {} y alpha = {} \n (sitios amarillos y naranjas corresponden a agentes insatisfechos)".format(self.L, self.alpha))
-        plt.close(fig)
-        
-        return animacion
