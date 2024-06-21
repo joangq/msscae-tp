@@ -121,3 +121,84 @@ def satisfechos_en(i: int) -> callable:
     _.__name__ = f'satisfechos_en_{i}' # Importante cambiar el nombre para que no colisione en el cache.
 
     return _
+
+# Pre-generacion ============================================================================================
+
+from numpy.random import Generator as RNG
+from tp.util.barrios import Mapa
+from typing import Optional
+from tp.util.types import Lattice
+from tp.schelling import mercado_inmobiliario
+from tp.util import simulador
+
+
+def crear_modelo(alpha: float, 
+                 rango_de_vision: float,
+                 rng: RNG,
+                 mapa: Mapa,
+                 L: Optional[float] = None,
+                 capital_inicial: Optional[Lattice[float]] = None,
+                 min_capital: int = 0,
+                 max_capital: int = 10,
+) -> mercado_inmobiliario:
+    """
+    L = 50
+    capital_inical = random.uniform(0,1, (N,N))
+    """
+
+    if L is None:
+        L = 50
+
+    if capital_inicial is None:
+        capital_inicial = rng.uniform(min_capital, max_capital, (L,L))
+
+    modelo = mercado_inmobiliario(
+    L=L, 
+    alpha=alpha,
+    rng=rng, 
+    mapa = mapa,
+    rango_de_vision=rango_de_vision,
+    capital_inicial=capital_inicial,
+    )
+    
+    return modelo
+
+
+def crear_simulador(caching_actions: list[callable],
+                    max_steps: Optional[int] = None, 
+                    tol: Optional[float] = None,
+                    lag: Optional[int] = None,
+                    equilibrio: Optional[callable] = None
+                    ) -> callable:
+    """
+    tol = 1e-3
+    lag = 20
+    max_steps = 150
+    """
+    
+    if tol is None:
+        tol = 1e-3
+
+    if lag is None:
+        lag = 20
+
+    if max_steps is None:
+        max_steps = 150
+
+    if equilibrio is None:
+        equilibrio = criterio_equilibrio
+    
+    def _simulador_parcial(modelo: mercado_inmobiliario) -> simulador:
+        """
+        Fabrica de simuladores
+        """
+        return simulador(modelo=modelo, 
+                         criterio_equilibrio=equilibrio, 
+                         max_steps=max_steps, 
+                         lag=lag, 
+                         tol=tol, 
+                         cache_actions=caching_actions
+                         )
+
+    return _simulador_parcial
+
