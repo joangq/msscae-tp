@@ -10,6 +10,7 @@ from fundar import json
 from fundar.json import JSONEncoder
 from fundar.utils.time import now
 from tqdm.auto import tqdm
+from fundar.parallelization import Multiprocess
 from definiciones import (
     graficar_gini, 
     gini, 
@@ -29,43 +30,47 @@ class JsonEncoder(JSONEncoder):
         if isinstance(o, np.integer):
             return int(o)
 
-if __name__ == '__main__':
-    N = 50
-    alphas = [.1, .4, .8]
-    rangos_de_vision = np.linspace(0,1, 10)
+def utilidad(modelo):
+        return modelo.utilidad_media()
 
-    rng = random_number_generator(seed=1)
-    m = Mapa.load(mapa='./tp/mapas/cuatro_cuadrantes.txt',  barrios='./tp/barrios.json')
-    m.as_image();
-    m.show()
+def correr_modelo(args):
+    alpha, r, rng, m, cap_inicial = args
+    modelo = mercado_inmobiliario(50, alpha=alpha, rango_de_vision=r, mapa=m, rng=rng, capital_inicial=cap_inicial)
 
     caching_actions = (
-    mercado_inmobiliario.utilidad_media,
-    mercado_inmobiliario.capital_medio,
+        mercado_inmobiliario.utilidad_media,
+        mercado_inmobiliario.capital_medio
     )
 
-    M = len(alphas) * len(rangos_de_vision)
-    config_iniciales = rng.uniform(0, 10, (M, N, N))  # M matrices de NxN
+    sim = simulador(modelo, criterio_equilibrio, max_steps=150, lag=20, tol=1e-3, cache_actions=caching_actions)
+    sim.run()
+    return sim;
 
-    modelos = [None for _ in range(M)]
-    simuladores = [crear_simulador(caching_actions) for _ in range(M)]
+def main():
+    N = 50
+    alphas = [.1, .4, .8]
+    rangos_de_vision = np.linspace(0,1, 1000)
+
+    rng = random_number_generator(seed=1)
+    m = Mapa.load(mapa='./src/tp/mapas/tercios.txt',  barrios='./src/tp/barrios.json')
+    m.show()
+
+    M = len(alphas) * len(rangos_de_vision)
+    config_iniciales = rng.uniform(0, 1, (M, N, N))  # M matrices de NxN
 
     i = 0
+    inputs = []
     for alpha in tqdm(alphas):
         for r in rangos_de_vision:
-            modelos[i] = crear_modelo(alpha, r, rng, m, capital_inicial=config_iniciales[i])
-            simuladores[i] = simuladores[i](modelos[i])
+            inputs.append((alpha, r, rng, m, config_iniciales[i]))
             i += 1
 
-    for sim in tqdm(simuladores):
-        sim.run()
-
-    resultados_por_alpha = dict()
-
-    c_rangos = len(rangos_de_vision)
-    for i in range(0, M, c_rangos):
-        alpha = alphas[i//c_rangos]
-        resultados_por_alpha[alpha] = simuladores[i:i+c_rangos]
+    simuladores = \
+        Multiprocess.map(
+            correr_modelo,
+            inputs,
+            chunksize=3
+        )
 
     result = []
 
@@ -78,12 +83,24 @@ if __name__ == '__main__':
             'observaciones': observaciones,
             'alpha': alpha,
             'rango': rango,
+            'pasos': s.paso_actual,
             'satisfechos': [
                 satisfechos_en(0)(s.modelo),
                 satisfechos_en(1)(s.modelo),
                 satisfechos_en(2)(s.modelo),
                 satisfechos_en(3)(s.modelo)
-            ]
+            ],
+            'gini_indices': [
+                gini_barrio(0)(s.modelo),
+                gini_barrio(1)(s.modelo),
+                gini_barrio(2)(s.modelo),
+                gini_barrio(3)(s.modelo)
+            ],
+            'gini_t': gini(s.modelo.K.flatten())
         })
 
-    json.dump(result, f'results_{now.string}.json', cls=JsonEncoder)
+    json.dump(result, f'results__{now.string}.json', cls=JsonEncoder)
+
+
+if __name__ == '__main__':
+    main()
