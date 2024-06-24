@@ -52,7 +52,7 @@ def main():
     rangos_de_vision = np.linspace(0,1, 1000)
 
     rng = random_number_generator(seed=1)
-    m = Mapa.load(mapa='./src/tp/mapas/tercios.txt',  barrios='./src/tp/barrios.json')
+    m = Mapa.load(mapa='./src/tp/mapas/tercios.txt',  barrios_definidos='./src/tp/barrios.json')
     m.show()
 
     M = len(alphas) * len(rangos_de_vision)
@@ -98,6 +98,21 @@ def main():
             ],
             'gini_t': gini(s.modelo.K.flatten())
         })
+
+    # Result schema:
+    # {
+    #     'observaciones': {
+    #         'utilidad_media': List[float],
+    #         'capital_medio': List[float]
+    #     },
+    #     'alpha': float,
+    #     'rango': float,
+    #     'pasos': int,
+    #     'satisfechos': List[int],
+    #     'gini_indices': List[float],
+    #     'gini_t': float
+    # }
+
 
     json.dump(result, f'results__{now.string}.json', cls=JsonEncoder)
 

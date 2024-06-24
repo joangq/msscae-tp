@@ -112,6 +112,8 @@ class mercado_inmobiliario_interface(AbstractClass):
         return animacion
 
 class simulador_abstracto(AbstractClass):
+    __current_step: int = 0
+    __injections = list()
     """
     Interfaz para un simulador de un modelo de mercado inmobiliario de Schelling.
     """
@@ -151,8 +153,21 @@ class simulador_abstracto(AbstractClass):
         Ejecuta un paso del modelo, indistintamente de si se cumple el criterio de equilibrio.
         Además, actualiza el cache.
         """
+        if (self.__current_step % 10 == 0):
+            n_coords = 10
+            random_coords = self.modelo.rng.integers(0, self.modelo.L, size=(n_coords, 2))
+            random_amount = self.modelo.rng.uniform(0, 10, size=(n_coords,))
+
+            injection = list(zip(random_coords, random_amount))
+
+            for (i, j), amount in injection:
+                self.__injections.append(((i, j), amount))
+                self.modelo.K[i, j] += amount
+
+
         self.modelo.ronda_intercambio()
         self.cache()
+        self.__current_step += 1
     
     def run(self) -> None:
         """

@@ -35,14 +35,20 @@ def generar_cuatro_cuadrantes(path: str, L: int = 50) -> None:
                 file.write(f'{x} ')
             file.write('\n')
 
+from functools import cached_property
+
 class Mapa(Dataclass(init=True, frozen=True, eq=False)):
     mapa: np.ndarray[float]
-    barrios: list[Barrio]
+    barrios_definidos: list[Barrio]
     image_bytes: Optional[bytes] = None
+    
+    @cached_property
+    def barrios(self):
+        return frozenset(self.mapa.flatten())
 
     def __hash__(self):
         _mapa = hash(self.mapa.flatten().tobytes())
-        _barrios = tuple(hash(b) for b in self.barrios)
+        _barrios = tuple(hash(b) for b in self.barrios_definidos)
         return hash((_mapa, _barrios))
     
     def __eq__(self, value: object) -> bool:
@@ -70,7 +76,7 @@ class Mapa(Dataclass(init=True, frozen=True, eq=False)):
     ]
 
     @classmethod
-    def load(cls, mapa, barrios, colores = None):
+    def load(cls, mapa, barrios_definidos, colores = None):
         """
         Carga un Mapa desde archivos locales.
         Espera:
@@ -105,7 +111,7 @@ class Mapa(Dataclass(init=True, frozen=True, eq=False)):
         
         _mapa = np.array(grid)
     
-        with open(barrios, 'r') as f:
+        with open(barrios_definidos, 'r') as f:
             _barrios = json.load(f)
 
         has_color = all('color' in b for b in _barrios)
@@ -134,7 +140,7 @@ class Mapa(Dataclass(init=True, frozen=True, eq=False)):
         
         plt.ioff() # Desactivo el modo interactivo
         fig = plt.figure(figsize=figsize)
-        palette = Palette.from_hex(b.color for b in self.barrios)
+        palette = Palette.from_hex(b.color for b in self.barrios_definidos)
         cmap, norm = palette.to_cmap()
         buffer = BytesIO()
 
@@ -155,13 +161,13 @@ class Mapa(Dataclass(init=True, frozen=True, eq=False)):
         Devuelve un DataFrame con la info. de los barrios como tabla.
         """
         info = {
-            'Precio Propiedades': [b.precio_propiedades for b in self.barrios],
-            'Precio Mudanza': [b.precio_mudanza for b in self.barrios],
+            'Precio Propiedades': [b.precio_propiedades for b in self.barrios_definidos],
+            'Precio Mudanza': [b.precio_mudanza for b in self.barrios_definidos],
         }
 
         result = pd.DataFrame(info)
 
-        result.index = [f'Barrio {i+1}' for i in range(len(self.barrios))]
+        result.index = [f'Barrio {i+1}' for i in range(len(self.barrios_definidos))]
 
         # suma de 'Precio Propiedades' y 'Precio Mudanza'
         result['Peor caso'] = result.sum(axis=1)

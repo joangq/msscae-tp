@@ -54,13 +54,13 @@ class mercado_inmobiliario(mercado_inmobiliario_interface):
         self.mapa = mapa
 
         #self.precios_barrios = precios_barrios
-        self.precios_barrios = [barrio.precio_mudanza for barrio in mapa.barrios]
+        self.precios_barrios = [barrio.precio_mudanza for barrio in mapa.barrios_definidos]
 
         #self.mapa_barrios = configuracion_barrios
         self.mapa_barrios = mapa.mapa
 
         #self.precios_prop_barrios = precios_prop_barrios
-        self.precios_prop_barrios = [barrio.precio_propiedades for barrio in mapa.barrios]
+        self.precios_prop_barrios = [barrio.precio_propiedades for barrio in mapa.barrios_definidos]
 
         if not rng:
             rng = np.random.default_rng()

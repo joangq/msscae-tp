@@ -47,6 +47,7 @@ class simulador(simulador_abstracto):
 
 
     def cache(self):
+
         for action in self.cache_actions:
             name = action.__name__
             self._cache[name][self.paso_actual] = action(self.modelo)
