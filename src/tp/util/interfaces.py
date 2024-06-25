@@ -182,5 +182,8 @@ class simulador_abstracto(AbstractClass):
                 break
                 
         self.on_finish(equilibrio, step)
+
+    def export(self, **kwargs):
+        return {k:v(self) for k,v in kwargs.items()}
         
 

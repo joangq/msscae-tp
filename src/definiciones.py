@@ -108,6 +108,24 @@ def gini_barrio(i: int) -> callable:
 
     return _
 
+def gini_barrio_u(i: int) -> callable:
+    """
+    Fabrica de funciones, devuelve una funcion 'gini_barrio_i' que calcula el gini del capital de los agentes en el barrio i.
+    """
+
+    def _(modelo) -> float:
+        """
+        Calcula el gini del capital de los agentes en el barrio i.
+        """
+        mask = modelo.mapa_barrios == i
+        utilidad_barrio = modelo.U * mask
+        utilidad_barrio = utilidad_barrio.flatten()
+        utilidad_barrio = utilidad_barrio[mask.flatten().nonzero()[0]]
+        return gini(utilidad_barrio)
+    _.__name__ = f'gini_barrio_u_{i}' # Importante cambiar el nombre para que no colisione en el cache.
+
+    return _
+
 def satisfechos_en(i: int) -> callable:
     """
     Fabrica de funciones, devuelve una funcion 'satisfechos_por_barrio_i' que calcula la proporcion de agentes satisfechos en el barrio i.
