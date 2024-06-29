@@ -1,0 +1,11 @@
+[
+    {"precio_mudanza": 3.0, "precio_propiedades": 1.35, "color": "#E15759"},
+    {"precio_mudanza": 2.25, "precio_propiedades": 1.0125, "color": "#4E79A7"},
+    {"precio_mudanza": 1.2, "precio_propiedades": 0.54, "color": "#59A14F"},
+    {"precio_mudanza": 0.15, "precio_propiedades": 0.0675, "color": "#F28E2B"},
+
+    {"precio_mudanza": 3.0, "precio_propiedades": 1.35, "color": "#4285F4"},
+    {"precio_mudanza": 2.25, "precio_propiedades": 1.0125, "color": "#EA4335"},
+    {"precio_mudanza": 1.2, "precio_propiedades": 0.74, "color": "#FBBC04"},
+    {"precio_mudanza": 0.15, "precio_propiedades": 0.3675, "color": "#34A853"}
+]

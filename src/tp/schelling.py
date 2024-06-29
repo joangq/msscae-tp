@@ -34,11 +34,8 @@ class mercado_inmobiliario(mercado_inmobiliario_interface):
     mapa_barrios: Lattice[int]
 
     def __init__(self, 
-                 L: int,
-                 # precios_barrios: list[float], #precios de mudarse a ese barrio
-                 # precios_prop_barrios: list[float],
-                 # configuracion_barrios: Lattice[int], # los valores están entre 0 y len(barrios)
                  mapa: Mapa,
+                 L: Optional[int] = None,
                  configuracion: Optional[Lattice[int]] = None,
                  alpha: float = 0.5,
                  rango_de_vision: float = 1,
@@ -46,20 +43,24 @@ class mercado_inmobiliario(mercado_inmobiliario_interface):
                  capital_inicial = None
                  ):
         
-        self.L = L
+        if mapa.mapa.shape[0] != mapa.mapa.shape[1]:
+            raise ValueError("El mapa debe ser cuadrado")
+        
+        if L is not None and configuracion is not None:
+            if L != configuracion.shape[0] or L != configuracion.shape[1]:
+                raise ValueError("El tamaño de la cuadrícula no coincide con la configuración inicial")
+        
+        self.L = mapa.mapa.shape[0]
         self.alpha = alpha
 
         self.rango_de_vision = rango_de_vision
 
         self.mapa = mapa
 
-        #self.precios_barrios = precios_barrios
         self.precios_barrios = [barrio.precio_mudanza for barrio in mapa.barrios_definidos]
 
-        #self.mapa_barrios = configuracion_barrios
         self.mapa_barrios = mapa.mapa
 
-        #self.precios_prop_barrios = precios_prop_barrios
         self.precios_prop_barrios = [barrio.precio_propiedades for barrio in mapa.barrios_definidos]
 
         if not rng:
@@ -68,7 +69,6 @@ class mercado_inmobiliario(mercado_inmobiliario_interface):
         self.rng = rng
 
         if not configuracion:
-            # reemplaza np.random.randint
             configuracion = rng.integers(2, size=(self.L, self.L))
         
         self.configuracion = configuracion

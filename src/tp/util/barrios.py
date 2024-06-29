@@ -161,17 +161,14 @@ class Mapa(Dataclass(init=True, frozen=True, eq=False)):
         Devuelve un DataFrame con la info. de los barrios como tabla.
         """
         info = {
-            'Precio Propiedades': [b.precio_propiedades for b in self.barrios_definidos],
-            'Precio Mudanza': [b.precio_mudanza for b in self.barrios_definidos],
+            'Precio Propiedades': [self.barrios_definidos[i].precio_propiedades for i in self.barrios],
+            'Precio Mudanza': [self.barrios_definidos[i].precio_mudanza for i in self.barrios],
         }
 
         result = pd.DataFrame(info)
 
-        result.index = [f'Barrio {i+1}' for i in range(len(self.barrios_definidos))]
-
-        # suma de 'Precio Propiedades' y 'Precio Mudanza'
-        result['Peor caso'] = result.sum(axis=1)
-
+        result.index = [f'Barrio {i}' for i in self.barrios]
+        
         return result
     
     def _repr_html_(self, redraw=False):

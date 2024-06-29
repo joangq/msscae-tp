@@ -22,6 +22,7 @@ class simulador(simulador_abstracto):
     tol: float
 
     cache_actions: None | Iterable[Callable[[mercado_inmobiliario_interface], Any]] = None
+    on_finish_print: bool = True
     """
     En cada paso, cada funcion de 'cache_actions' se ejecuta, y su resultado se guarda en el cache.
     (ver 'cache')
@@ -46,7 +47,7 @@ class simulador(simulador_abstracto):
         self._cache['utilidad'] = self._cache['utilidad_media'][0:self.paso_actual+1] # actualizo ref
 
 
-    def cache(self):
+    def on_step(self):
 
         for action in self.cache_actions:
             name = action.__name__
@@ -56,9 +57,19 @@ class simulador(simulador_abstracto):
         self.paso_actual += 1
 
     def on_finish(self, alcanzo_equilibrio: bool, pasos: int) -> None:
-        print(f"La simulación {'alcanzó' if alcanzo_equilibrio else 'no alcanzó'} el equilibrio en {pasos} pasos.")
+        if self.on_finish_print:
+            print(f"La simulación {'alcanzó' if alcanzo_equilibrio else 'no alcanzó'} el equilibrio en {pasos} pasos.")
 
         del self._cache['utilidad'] # borro la ref a utilidad_media
 
         for k in self._cache.keys():
             self._cache[k].resize(pasos) # refcheck=false si quedan referencias
+
+
+class SimuladorFactory:
+    def __init__(self, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+
+    def __call__(self, modelo):
+        return simulador(modelo, *self.args,**self.kwargs)

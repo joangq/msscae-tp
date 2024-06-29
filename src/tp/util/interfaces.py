@@ -5,6 +5,7 @@ from matplotlib.animation import FuncAnimation
 from tp.util.types import Lattice
 from matplotlib import pyplot as plt
 import numpy as np
+from tqdm.auto import tqdm
 
 class mercado_inmobiliario_interface(AbstractClass):
     """
@@ -130,7 +131,7 @@ class simulador_abstracto(AbstractClass):
                  tol: float): ...
     
     @abstractmethod
-    def cache(self):
+    def on_step(self):
         """
         Actualiza el cache con los valores actuales del modelo.
         Se garantiza ser ejecutada en cada paso del modelo.
@@ -166,16 +167,17 @@ class simulador_abstracto(AbstractClass):
 
 
         self.modelo.ronda_intercambio()
-        self.cache()
+        self.on_step()
         self.__current_step += 1
     
-    def run(self) -> None:
+    def run(self, use_tqdm=False) -> None:
         """
         Ejecuta todos los pasos hasta que se cumpla el criterio de equilibrio o se alcance el máximo de pasos.
         """
+        iterator = tqdm if use_tqdm else iter
         equilibrio = False
         step = -1
-        for step in range(self.max_steps):
+        for step in iterator(range(self.max_steps)):
             self.step()
             if self.criterio_equilibrio(self._cache['utilidad'], self.lag, self.tol):
                 equilibrio = True
