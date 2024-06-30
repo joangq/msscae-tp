@@ -232,7 +232,8 @@ def plot_satisfacciones_para_alpha(alpha: float,
                                    habitantes_por_barrio: list[int], 
                                    barrios_definidos: list[Barrio],
                                    _subsample: None|int =None,
-                                   _smoothing_cutoff=15):
+                                   _smoothing_cutoff=15,
+                                   ax=None):
     """
     Grafica las satisfacciones en función de el rango de visión para
     un alpha particular.
@@ -247,37 +248,39 @@ def plot_satisfacciones_para_alpha(alpha: float,
     '_subsample' es un parámetro de prueba, para ver el gráfico con distintas cantidades de datos.
     '_smoothing_cutoff' es un umbral que determina si debe suavizarse el gráfico o no.
     """
+
+    if not ax:
+        fig, ax = plt.figure(figsize=(6, 4))
     
     if not alpha in satisfacciones.keys():
         raise KeyError('Alfa inválido.')
     
     df = pd.DataFrame(satisfacciones[alpha]).T
-    fig = plt.figure(figsize=(10, 5))
     n_barrios = len(habitantes_por_barrio)
     for i in range(n_barrios):
         color = barrios_definidos[i].color
         satisfechos_i = 100 * df[i] / habitantes_por_barrio[i]
-        x = np.linspace(0,1, len(satisfechos_i))
+        x = np.linspace(0, 1, len(satisfechos_i))
         if _subsample is not None:
             x, satisfechos_i = subsample(satisfechos_i, _subsample)
         
         noisy_alpha = 1
         if len(satisfechos_i) >= _smoothing_cutoff:
             smooth_subdivided_savgol = smooth_data(satisfechos_i)
-            plt.plot(x, smooth_subdivided_savgol, label=f'Barrio {i} (suavizada)', color=color, alpha=1)
-            noisy_alpha=.3
+            ax.plot(x, smooth_subdivided_savgol, label=f'Barrio {i} (suavizada)', color=color, alpha=1)
+            noisy_alpha = .3
 
-        plt.plot(x, satisfechos_i, label=f'Barrio {i} (original)', color=color, alpha=noisy_alpha)
+        ax.plot(x, satisfechos_i, label=f'Barrio {i} (original)', color=color, alpha=noisy_alpha)
 
-    legend = plt.legend(loc='best', ncol=n_barrios)
+    legend = ax.legend(loc='best', ncol=n_barrios)
     for t in legend.get_texts():
         t.set_color('black')
         t.set_fontsize(7)
 
-    plt.ylim(0,100)
-    plt.xlim(0,1)
-    plt.tight_layout()
-    return fig
+    ax.set_ylim(0, 100)
+    ax.set_xlim(0, 1)
+    ax.figure.tight_layout()
+    return ax.figure
 
 def detect_os():
     """

@@ -87,7 +87,7 @@ class mercado_inmobiliario_base(AbstractBaseClass):
 
                 # Marcar agentes insatisfechos dependiendo del tipo de agente
                 if U_ij < 0.85:
-                    lattice[i, j] = 4 if self.configuracion[i, j] == 1 else 5
+                    lattice[i, j] = 3 if self.configuracion[i, j] == 1 else 4
         
         return lattice
     
