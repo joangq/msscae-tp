@@ -23,6 +23,8 @@ def Dataclass(**factory_kwargs):
     Esto es un wrapper de 'dataclass', funciona como una fábrica de clases wrappeadas con dataclass.
     Los keyword-arguments van directo al decorador 'dataclass'.
     Además, suma métodos 'from_dict' y 'to_dict' que no tiene dataclass por defecto.
+
+    Está diseñado para que las clases lo subclasseen.
     """
     return type('', (), {
         '__init_subclass__': lambda cls, **kwargs: dataclass(cls, **factory_kwargs, **kwargs),

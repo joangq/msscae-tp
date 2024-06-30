@@ -1,6 +1,12 @@
+"""
+Código relacionado con la representación
+de barrios en un mapa para la simulación.
+"""
+
 from IPython.display import display, HTML
 from matplotlib import pyplot as plt
 from tp.util.types import Dataclass, memoize
+from functools import cached_property
 from tp.util.colors import Palette
 from base64 import b64encode
 from typing import Optional
@@ -11,11 +17,17 @@ import warnings
 import json
 
 class Barrio(Dataclass(init=True, frozen=True, unsafe_hash=True)):
+    """
+    Representa un barrio en la simulación.
+    """
     precio_propiedades: float
     precio_mudanza: float
     color: str
 
 def generar_cuatro_cuadrantes(path: str, L: int = 50) -> None:
+    """
+    Genera el mapa 'cuatro_cuadrantes'.
+    """
     with open(path, 'w') as file:
         for i in range(L):
             x = 0
@@ -35,13 +47,21 @@ def generar_cuatro_cuadrantes(path: str, L: int = 50) -> None:
                 file.write(f'{x} ')
             file.write('\n')
 
-from functools import cached_property
 
 class Mapa(Dataclass(init=True, frozen=True, eq=False)):
     mapa: np.ndarray[float]
     barrios_definidos: list[Barrio]
     image_bytes: Optional[bytes] = None
     
+    # Esto está acá porque: 
+    # - Mapa tiene que ser un frozen dataclass para ser hasheable
+    # - Pero no se puede modificar el mapa después de crearlo.
+    # Por ende, usar cached property es un hack para poder generar
+    # el valor después de la inicialización.*
+    # se calcula una vez, se guarda y reutiliza.
+
+    # *NOTA: Usar __post_init__ tampoco funciona, a ese punto ya está
+    # congelada.
     @cached_property
     def barrios(self):
         return frozenset(self.mapa.flatten())

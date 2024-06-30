@@ -29,7 +29,7 @@ from numpy import (
     integer as numpy_int
 )
 
-class JsonEncoder(json_.JSONEncoder):
+class JsonEncoder(json_.JSONEncoder): # Encodea tipos de numpy.
     def default(self, o: object):
         if isinstance(o, numpy_array):
             return list(o)

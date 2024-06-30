@@ -37,7 +37,8 @@ from tp.definiciones import (
     correr_secuencialmente,
     generate_filename,
     non_colliding_name,
-    Storage
+    generar_inputs,
+    MutableStorage
 )
 from tp.util import Mapa, simulador, SimuladorFactory
 import tp.util.json as json
@@ -164,30 +165,7 @@ class ArgumentParser(argparse.ArgumentParser):
         
         return self
 
-def generar_inputs(alphas, subdivisiones, seed, start_max, distribucion, barrios_path, mapa_path):
-    mapa = Mapa.load(mapa_path, barrios_definidos=barrios_path)
-    rng = random_number_generator(seed)
 
-    caching_actions = (
-        mercado_inmobiliario.utilidad_media,
-        mercado_inmobiliario.capital_medio,
-    )
-
-    rangos_de_vision = np.linspace(0,1, subdivisiones)
-
-    M = len(alphas) * len(rangos_de_vision)
-    N = mapa.mapa.shape[0]
-    method = getattr(rng, distribucion)
-    config_iniciales = rng.uniform(0, start_max, (M, N, N)) # M matrices de N x N
-
-    i = 0
-    inputs = []
-    for alpha in alphas:
-        for r in rangos_de_vision:
-            inputs.append((alpha, r, rng, mapa, config_iniciales[i], SimuladorFactory(criterio_equilibrio=criterio_equilibrio, max_steps=150, lag=20, tol=1e-3, on_finish_print=False, cache_actions=caching_actions)))
-            i += 1
-
-    return inputs
 
 def main():
     parser = ArgumentParser().parse_args()

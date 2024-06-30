@@ -1,19 +1,28 @@
+from tp.definiciones import MutableStorage, correr_en_paralelo, correr_secuencialmente
 from IPython.display import display, Markdown
+from scipy.signal import savgol_filter
+from matplotlib import pyplot as plt
+from tp.util.types import Lattice
+from tp.util.barrios import Barrio
+from tp.definiciones import gini
+import ipywidgets as widgets
 from typing import Iterable
 import pandas as pd
-import warnings
 import numpy as np
-from matplotlib import pyplot as plt
+import warnings
 import textwrap
-from tp.definiciones import gini
+import platform
 
 def mostrar_texto(s: str) -> None:
+    """
+    Utilidad para renderizar Markdown en un entorno IPython.
+    """
     display(Markdown(s))
 
-
-# ====
-
 def graficar_gini(data: Iterable[float], coef: float, color_linea='red', color_relleno='blue', **kwargs):
+    """
+    Grafica la curva de Lorenz y el coeficiente de Gini asociado a una distribución de datos.
+    """
 
     titulo = kwargs.pop('titulo', 'Curva de Lorenz y Coeficiente de Gini')
     tooltip = kwargs.pop('tooltip', 'Gini Index = {coef:.2f}')
@@ -78,8 +87,9 @@ def graficar_gini(data: Iterable[float], coef: float, color_linea='red', color_r
     plt.show()
 
 def gini_de(data: Iterable[float], graficar=True, **kwargs):
-    
-        
+    """
+    Toma un iterable de valores, calcula y grafica el indice de Gini.
+    """
     index = gini(data)
 
     if graficar:
@@ -87,21 +97,17 @@ def gini_de(data: Iterable[float], graficar=True, **kwargs):
         
     return index
 
-def generar_capital_inicial(method: callable, *args, config_grafica={}, **kwargs):
+def graficar_capital(min_val, max_val, capital: Lattice[float], **config_grafica):
+    """
+    Grafica el capital de la simulación como un heatmap, side-to-side con una gráfica
+    de la desigualdad en la distribución: muestra el coeficiente de Gini junto con
+    la curva de Lorenz asociada.
+    """
     # Extraigo keyword-arugments de la configuración de la gráfica
     cmap = config_grafica.pop('cmap', 'grey')
     suptitle = config_grafica.pop('suptitle', 'Capital inicial\n\n')
-
-    # Genero el capital inicial
-    # Se espera que 'method' sea un método de
-    # la clase 'numpy.Generator'
-    
-    capital_inicial = method(*args, **kwargs)
-    flat = capital_inicial.flatten()
-    min_val = min(flat)
-    max_val = max(flat) * 2 # Multiplico por dos para reusar la escala
-
-    # Grafico el capital inicial y el coeficiente de Gini de la distribución
+    title_text = config_grafica.pop('title', 'Mapa del capital inicial\n\n')
+    subtitle_text = config_grafica.get('subtitle', 'Capital inicial por agente en la cuadricula generado por el código aleatoriamente.')
 
     normalizer = plt.Normalize(min_val, max_val)
     
@@ -114,28 +120,51 @@ def generar_capital_inicial(method: callable, *args, config_grafica={}, **kwargs
     # subplot izq (heatmap)
     plt.subplot(1, 2, 1)
     plt.grid(False)
-    title = plt.title('Mapa del capital inicial\n\n')
+    title = plt.title(title_text)
     title.set_color('black')
 
-    subtitle_text =  'Capital inicial por agente en la cuadricula generado por el código aleatoriamente.'
     subtitle_text = textwrap.fill(subtitle_text, 50)
     subtitle = plt.text(0.5, 1.055, subtitle_text, fontsize=11, ha='center', va='center', transform=plt.gca().transAxes)
     subtitle.set_color('black')
 
-    plt.imshow(capital_inicial, cmap=cmap, norm=normalizer)
+    plt.imshow(capital, cmap=cmap, norm=normalizer)
     colorbar = plt.colorbar()
     colorbar.set_label('Capital', rotation=270, labelpad=20)
 
     # subplot der (gini)
     plt.subplot(1, 2, 2)
-    gini = gini_de(flat, **config_grafica)
+    gini = gini_de(capital.flatten(), **config_grafica)
 
+    return normalizer, gini
+
+
+def generar_capital_inicial(method: callable, *args, config_grafica={}, **kwargs) -> tuple[Lattice[float], plt.Normalize, float]:
+    """
+    Genera el capital inicial y lo grafica.
+    Se espera que 'method' sea un método de
+    instancia de la clase 'numpy.Generator'
+
+    'config_grafica' es un diccionario que será utilizado para graficar la distribución.
+    El resto de argumentos y keyword-arguments pasan directo a 'method'.
+    """
+    
+    capital_inicial = method(*args, **kwargs)
+    flat = capital_inicial.flatten()
+    min_val = min(flat)
+    max_val = max(flat) * 2 # Multiplico por dos para reusar la escala más adelante
+
+    # Grafico el capital inicial y el coeficiente de Gini de la distribución
+
+    normalizer, gini = graficar_capital(min_val, max_val, capital_inicial, **config_grafica)
     return capital_inicial, normalizer, gini
-
 
 # ==
 
 def mostrar_satisfechos_antes_despues(satisfechos_inicial, satisfechos_final, **opciones_graficas):
+    """
+    Grafica dos heatmaps de satisfacción side-to-side.
+    A la izquierda 'antes' de la simulación; a la derecha 'después'.
+    """
     pasos_totales = opciones_graficas['pasos_totales']
     scale = opciones_graficas.pop('scale', 1)
     suptitle_text = opciones_graficas.pop('suptitle', 'Satisfacción de los agentes\n\n')
@@ -168,15 +197,30 @@ def mostrar_satisfechos_antes_despues(satisfechos_inicial, satisfechos_final, **
     plt.imshow(satisfechos_final, cmap=discrete_cmap, norm=norm)
     plt.colorbar(label='Nivel de insatisfacción')
 
-from scipy.signal import savgol_filter
 
 def subsample(ys, amount=1000):
+    """
+    'Subdivide' una lista de valores 'ys' en 'amount' partes iguales,
+    con 'amount' < len(ys).
+
+    Es una utilidad para probar distintas cantidades de datos en un gráfico.
+    """
     indices = np.linspace(0, len(ys)-1, amount, dtype=int)
     subdivided_y = np.array(ys)[indices]
     subdivided_x = np.linspace(0, 1, len(subdivided_y))
     return subdivided_x, subdivided_y
 
 def smooth_data(ys, window_length=None, **kwargs):
+    """
+    Toma una lista de valores 'ys' y devuelve una lista de valores suavizados,
+    garantiza que ambas listas tengan la misma longitud.
+
+    En particular, filtra el ruido usando un filtro de Savitzky-Golay.
+    Si no se pasa un largo de ventana, se calcula automáticamente como:
+
+    window_length = |ys| / (1+log_10(|ys|))
+    """
+
     if window_length is None:
         window_length = len(ys) // len(str(len(ys)))
     
@@ -186,9 +230,23 @@ def smooth_data(ys, window_length=None, **kwargs):
 def plot_satisfacciones_para_alpha(alpha: float, 
                                    satisfacciones: dict[float, dict[float, list[int]]], 
                                    habitantes_por_barrio: list[int], 
-                                   barrios_definidos: list,
+                                   barrios_definidos: list[Barrio],
                                    _subsample: None|int =None,
                                    _smoothing_cutoff=15):
+    """
+    Grafica las satisfacciones en función de el rango de visión para
+    un alpha particular.
+    Espera un diccionario que tenga el siguiente esquema:
+    {float: {float: list[int], ... }, ... }
+
+    Donde el primer float es el alpha, el segundo float es el rango de visión.
+
+    'habitantes_por_barrio' es una lista con la cantidad de habitantes por barrio.
+    'barrios_definidos' es una lista de instancias de 'Barrio' que definen los colores.
+
+    '_subsample' es un parámetro de prueba, para ver el gráfico con distintas cantidades de datos.
+    '_smoothing_cutoff' es un umbral que determina si debe suavizarse el gráfico o no.
+    """
     
     if not alpha in satisfacciones.keys():
         raise KeyError('Alfa inválido.')
@@ -221,11 +279,10 @@ def plot_satisfacciones_para_alpha(alpha: float,
     plt.tight_layout()
     return fig
 
-# ====
-
-import platform
-
 def detect_os():
+    """
+    Detecta el sistema operativo actual y devuelve una 'string' que lo representa.
+    """
     current_os = platform.system()
     if current_os == "Windows":
         return 'windows'
@@ -234,9 +291,12 @@ def detect_os():
     else:
         return 'unknown'
 
-import ipywidgets as widgets
-
 def create_os_buttons(detected_os, on_click: callable):
+    """
+    Crea botones para ejecutar la simulación.
+    'Correr en paralelo' solo debería estar habilitado en Linux,
+    en Windows se rompen las pools de procesos.
+    """
     layout = widgets.Layout(width='auto', height='40px')
     windows_button = widgets.Button(description="Correr con un solo hilo", layout=layout)
     linux_button = widgets.Button(description="Correr en paralelo", layout=layout)
@@ -265,11 +325,18 @@ def create_os_buttons(detected_os, on_click: callable):
     buttons = widgets.HBox([windows_button, linux_button], width='auto')
     display(buttons)
 
-from tp.definiciones import Storage, correr_en_paralelo, correr_secuencialmente
 
-def opciones_ejecutar_modelo(inputs, store: Storage):
+def opciones_ejecutar_modelo(inputs, store: MutableStorage):
+    """
+    Fabrica de funciones, toma parámetros para ser usados por los callbacks
+    de los botones.
+
+    Devuelve una función que espera un botón, ejecuta la función correspondiente y muta el Storage.
+    """
     def _(b):
         result = correr_en_paralelo(inputs) if b.description == 'Correr en paralelo' else correr_secuencialmente(inputs)
         store.set_store(result)
         return store
     return _
+
+

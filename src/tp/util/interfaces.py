@@ -1,5 +1,8 @@
+# Este archivo se llama 'interfaces' porque antiguamente no contenía implementaciones.
+# Ahora contiene las clases abstractas del modelo y simulador.
+
 from typing import Optional
-from abc import ABC as AbstractClass, abstractmethod
+from abc import ABC as AbstractBaseClass, abstractmethod
 from numpy.random import Generator as RandomNumberGenerator
 from matplotlib.animation import FuncAnimation
 from tp.util.types import Lattice
@@ -7,13 +10,16 @@ from matplotlib import pyplot as plt
 import numpy as np
 from tqdm.auto import tqdm
 
-class mercado_inmobiliario_interface(AbstractClass):
+class mercado_inmobiliario_base(AbstractBaseClass):
     """
-    Interfaz para el modelo de mercado inmobiliario de Schelling.
+    Clase para el modelo de mercado inmobiliario de Schelling.
 
     La diferencia que tiene esto con el modelo original es que usa inyección de dependencias
     para el generador de números aleatorios, dado que numpy no soporta el cambio global de
     la semilla de los números aleatorios.
+
+    Sirve para separar las partes del código que requieren de una implementación concreta de
+    aquellas que son compartidas.
     """
     @abstractmethod
     def __init__(self, 
@@ -112,12 +118,24 @@ class mercado_inmobiliario_interface(AbstractClass):
         
         return animacion
 
-class simulador_abstracto(AbstractClass):
+class simulador_base(AbstractBaseClass):
+    """
+    Clase para simular un modelo de mercado inmobiliario de Schelling.
+
+    Sirve para que simplemente se le 'inyecte' un modelo y se ejecute la simulación
+    de manera estándar.
+
+    El funcionamiento base es el siguiente:
+    > `step()` ejecuta un paso del modelo.
+    > `run()` ejecuta todos los pasos hasta que se cumpla el criterio de equilibrio o se alcance el máximo de pasos.
+
+    Garantiza que en cada llamada de `step()` se llame a un callback `on_step()`, y al finalizar la simulación
+    en `run()` se llame a `on_finish()`.
+
+    La implementación del callback es responsabilida de la sub-clase.
+    """
     __current_step: int = 0
     __injections = list()
-    """
-    Interfaz para un simulador de un modelo de mercado inmobiliario de Schelling.
-    """
     _cache: dict[str]
     """
     IMPORTANTE: El cache espera tener una clave 'utilidad' que tenga una lista de tamaño variable
@@ -126,7 +144,7 @@ class simulador_abstracto(AbstractClass):
 
     @abstractmethod
     def __init__(self, 
-                 modelo: mercado_inmobiliario_interface, 
+                 modelo: mercado_inmobiliario_base, 
                  max_steps: int, 
                  tol: float): ...
     
@@ -152,7 +170,8 @@ class simulador_abstracto(AbstractClass):
     def step(self) -> None:
         """
         Ejecuta un paso del modelo, indistintamente de si se cumple el criterio de equilibrio.
-        Además, actualiza el cache.
+
+        Adicionalmente, realiza la llamada al callback `on_step()`.
         """
         if (self.__current_step % 10 == 0):
             n_coords = 10
@@ -173,6 +192,8 @@ class simulador_abstracto(AbstractClass):
     def run(self, use_tqdm=False) -> None:
         """
         Ejecuta todos los pasos hasta que se cumpla el criterio de equilibrio o se alcance el máximo de pasos.
+
+        Adicionalmente, realiza la llamada al callback `on_finish()` cuando finaliza la simulación.
         """
         iterator = tqdm if use_tqdm else iter
         equilibrio = False
@@ -186,6 +207,19 @@ class simulador_abstracto(AbstractClass):
         self.on_finish(equilibrio, step)
 
     def export(self, **kwargs):
+        """
+        Espera keyword-arguments asignados a observadores que
+        tomen un modelo y devuelvan una observación. Luego,
+        devuelve un diccionario con los nombres asociados a los
+        observadores junto con los resultados obtenidos.
+
+        Uso:
+        >>> simulador_base.export(
+             mi_observacion = mi_observador
+        )
+
+        >>> {'mi_observacion': ... }
+        """
         return {k:v(self) for k,v in kwargs.items()}
         
 
