@@ -300,6 +300,7 @@ def create_os_buttons(detected_os, on_click: callable):
     'Correr en paralelo' solo debería estar habilitado en Linux,
     en Windows se rompen las pools de procesos.
     """
+    mostrar_texto("**Correr en paralelo (con multiprocesos) sólo en Linux. En Windows los procesos se rompen.**")
     layout = widgets.Layout(width='auto', height='40px')
     windows_button = widgets.Button(description="Correr con un solo hilo", layout=layout)
     linux_button = widgets.Button(description="Correr en paralelo", layout=layout)
@@ -343,3 +344,96 @@ def opciones_ejecutar_modelo(inputs, store: MutableStorage):
     return _
 
 
+# ====
+
+import pandas as pd
+from scipy.signal import savgol_filter
+import plotly.graph_objects as go
+
+def extraer_mediciones_totales(resultados: dict, key: str):
+    mediciones = dict()
+    for r in resultados:
+        alpha = r['alpha']
+        rango = r['rango']
+
+        mediciones.setdefault(alpha, {}).setdefault(rango, r[key])
+    
+    return mediciones
+
+def graficar_satisfechos_por_alpha_cuatro_cuadrantes_plotly(resultados_1, cuatro_cuadrantes, habitantes_por_barrio_cuad):
+    datasets = extraer_mediciones_totales(resultados_1, 'satisfechos')
+
+    # Create the initial dataframe
+    df = pd.DataFrame(datasets[.1])
+    df = df.T
+    df *= 100
+    df /= habitantes_por_barrio_cuad
+
+    # Savitzky-Golay filte
+    df[4] = savgol_filter(df[0], 200, 3)
+    df[5] = savgol_filter(df[1], 200, 3)
+    df[6] = savgol_filter(df[2], 200, 3)
+    df[7] = savgol_filter(df[3], 200, 3)
+
+    # Plot inicial (.1). Esto es porque plotly necesita tener algo ya graficado.
+    traces = []
+    for i in range(4):
+        traces.append(go.Scatter(x=df.index, y=df[i], mode='lines', name=f'Barrio {i}',
+                                line=dict(color=cuatro_cuadrantes.barrios_definidos[i].color, width=2), opacity=0.3, visible=True))
+        traces.append(go.Scatter(x=df.index, y=df[i+4], mode='lines', name=f'Barrio {i} (suavizado)',
+                                line=dict(color=cuatro_cuadrantes.barrios_definidos[i].color, width=2), visible=True))
+
+    fig = go.Figure(data=traces)
+
+    # El resto de plots (.4, .8)
+    for key in datasets:
+        if key != .1:
+            df = pd.DataFrame(datasets[key])
+            df = df.T
+            df *= 100
+            df /= habitantes_por_barrio_cuad
+
+            df[4] = savgol_filter(df[0], 200, 3)
+            df[5] = savgol_filter(df[1], 200, 3)
+            df[6] = savgol_filter(df[2], 200, 3)
+            df[7] = savgol_filter(df[3], 200, 3)
+
+            for i in range(4):
+                fig.add_trace(go.Scatter(x=df.index, y=df[i], mode='lines', name=f'Barrio {i}',
+                                        line=dict(color=cuatro_cuadrantes.barrios_definidos[i].color, width=2), opacity=0.3, visible=False))
+                fig.add_trace(go.Scatter(x=df.index, y=df[i+4], mode='lines', name=f'Barrio {i} (suavizado)',
+                                        line=dict(color=cuatro_cuadrantes.barrios_definidos[i].color, width=2), visible=False))
+
+    # Pasos para los sliders
+    steps = []
+    for i, key in enumerate(datasets):
+        step = dict(
+            method="update",
+            args=[{"visible": [False] * len(fig.data)},
+                {"title": f"Satisfacción por Rango por Barrio (alpha={key})"}],
+            label=str(key)
+        )
+        for j in range(8):
+            step["args"][0]["visible"][i * 8 + j] = True
+        steps.append(step)
+
+    # sliders
+    sliders = [dict(
+        active=0,
+        currentvalue={"prefix": "Alpha: "},
+        pad={"t": 50},
+        steps=steps
+    )]
+
+    # callback
+    fig.update_layout(
+        sliders=sliders,
+        title="Satisfacción por Rango por Barrio",
+        xaxis_title="Index",
+        yaxis_title="Satisfacción (%)",
+        yaxis=dict(range=[0, 100]),
+        legend=dict(font=dict(color="black")),
+        plot_bgcolor="white"
+    )
+
+    fig.show()

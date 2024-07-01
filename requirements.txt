@@ -25,6 +25,7 @@ parso==0.8.4
 pexpect==4.9.0
 pillow==10.3.0
 platformdirs==4.2.2
+plotly==5.22.0
 prompt-toolkit==3.0.43
 psutil==5.9.8
 ptyprocess==0.7.0
@@ -37,6 +38,7 @@ pyzmq==26.0.3
 scipy==1.12.0
 six==1.16.0
 stack-data==0.6.3
+tenacity==8.4.2
 tornado==6.4
 tqdm==4.66.4
 traitlets==5.14.3
