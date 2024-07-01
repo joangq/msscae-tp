@@ -349,6 +349,7 @@ def opciones_ejecutar_modelo(inputs, store: MutableStorage):
 import pandas as pd
 from scipy.signal import savgol_filter
 import plotly.graph_objects as go
+from tp.definiciones import _gini
 
 def extraer_mediciones_totales(resultados: dict, key: str):
     mediciones = dict()
@@ -437,3 +438,53 @@ def graficar_satisfechos_por_alpha_cuatro_cuadrantes_plotly(resultados_1, cuatro
     )
 
     fig.show()
+
+def plotly_heatmap(data, color_map='Inferno', scale=(0,20), title=None, func=None, slider_title='Rango'):
+    if not title:
+        title = f"Capital final por rango de visión. α=0.8. Cuatro cuadrantes - Gini:"
+    if not func:
+        func = lambda data, i: f'{_gini(data[i].flatten()):.2f}'
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=data[0],
+            colorscale=color_map,
+            zmin=scale[0],
+            zmax=scale[1],
+            colorbar=dict(title="Capital"),
+        )
+    )
+
+    sliders = [
+        {
+            'active': 0,
+            'currentvalue': {"prefix":slider_title+": "},
+            'pad': {"t": 50},
+            'steps': [
+                {
+                    'method': 'update',
+                    'args': [
+                        {'z': [data[i]]},
+                        {'title': title + ' ' + func(data, i)}
+                    ],
+                    'label': f'{(i+1)/100:.2f}'
+                } for i in range(data.shape[0])
+            ]
+        }
+    ]
+    fig.update_layout(
+        sliders=sliders,
+        title=title + ' ' + func(data, 0),
+        xaxis=dict(
+            scaleanchor="y",
+            scaleratio=1,
+            title="",
+        ),
+        yaxis=dict(
+            title="",
+        ),
+        width=600,
+        height=600,
+        margin=dict(l=50, r=50, t=100, b=50),
+    )
+
+    return fig
